@@ -37,21 +37,21 @@ Do not include any extra keys or prose. Only JSON.
 
 
 def call_openai(messages, model="gpt-4o", temperature=0.2):
-    """Small helper so we only write the OpenAI call once."""
-    resp = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=temperature,
-    )
-    return resp.choices[0].message.content
+  """Small helper so we only write the OpenAI call once."""
+  resp = client.chat.completions.create(
+      model=model,
+      messages=messages,
+      temperature=temperature,
+  )
+  return resp.choices[0].message.content
 
 
 def handle_gmail_lead_reply(email_text: str) -> dict:
-    """
-    Original behavior: extract lead details and write a reply in Dave's style.
-    Returns a dict matching JSON_INSTRUCTIONS.
-    """
-    user_prompt = f"""
+  """
+  Original behavior: extract lead details and write a reply in Dave's style.
+  Returns a dict matching JSON_INSTRUCTIONS.
+  """
+  user_prompt = f"""
 Extract lead details from this email and write a reply in Dave's style.
 
 {JSON_INSTRUCTIONS}
@@ -62,83 +62,83 @@ Email content:
 \"\"\" 
 """
 
-    try:
-        content = call_openai(
-            messages=[
-                {"role": "system", "content": BASE_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ]
-        )
-    except Exception as e:
-        # If OpenAI call fails, we still return a minimal structure
-        return {
-            "name": None,
-            "email": None,
-            "phone": None,
-            "lead_type": "Other",
-            "priority": "Medium",
-            "summary": email_text[:500],
-            "reply": (
-                "Hi there,\n\n"
-                "Thanks for reaching out. I saw your note and will follow up shortly.\n\n"
-                "Cheers,\n"
-                "David\n"
-            ),
-            "error": f"openai_error: {str(e)}",
-        }
+  try:
+    content = call_openai(
+        messages=[
+            {"role": "system", "content": BASE_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+    )
+  except Exception as e:
+    # If OpenAI call fails, we still return a minimal structure
+    return {
+        "name": None,
+        "email": None,
+        "phone": None,
+        "lead_type": "Other",
+        "priority": "Medium",
+        "summary": email_text[:500],
+        "reply": (
+            "Hi there,\n\n"
+            "Thanks for reaching out. I saw your note and will follow up shortly.\n\n"
+            "Cheers,\n"
+            "David\n"
+        ),
+        "error": f"openai_error: {str(e)}",
+    }
 
-    # Try to parse JSON. If it fails, fall back to a basic reply-only payload.
-    try:
-        parsed = json.loads(content)
-    except Exception:
-        parsed = {
-            "name": None,
-            "email": None,
-            "phone": None,
-            "lead_type": "Other",
-            "priority": "Medium",
-            "summary": email_text[:500],
-            "reply": content,
-        }
+  # Try to parse JSON. If it fails, fall back to a basic reply-only payload.
+  try:
+    parsed = json.loads(content)
+  except Exception:
+    parsed = {
+        "name": None,
+        "email": None,
+        "phone": None,
+        "lead_type": "Other",
+        "priority": "Medium",
+        "summary": email_text[:500],
+        "reply": content,
+    }
 
-    # Ensure all expected keys exist
-    for key, default in [
-        ("name", None),
-        ("email", None),
-        ("phone", None),
-        ("lead_type", "Other"),
-        ("priority", "Medium"),
-        ("summary", email_text[:500]),
-        ("reply", ""),
-    ]:
-        if key not in parsed:
-            parsed[key] = default
+  # Ensure all expected keys exist
+  for key, default in [
+      ("name", None),
+      ("email", None),
+      ("phone", None),
+      ("lead_type", "Other"),
+      ("priority", "Medium"),
+      ("summary", email_text[:500]),
+      ("reply", ""),
+  ]:
+    if key not in parsed:
+      parsed[key] = default
 
-    return parsed
+  return parsed
 
 
 def handle_generic_task(task_type: str, body: str, meta: dict) -> dict:
-    """
-    Future-friendly generic handler for non-lead tasks.
-    For now, it just writes a good reply in Dave's voice.
-    You can expand this later per task_type.
-    """
-    # Build a bit of context from meta if available
-    from_name = meta.get("from_name") or ""
-    from_email = meta.get("from_email") or ""
-    subject = meta.get("subject") or ""
+  """
+  Future-friendly generic handler for non-lead tasks.
+  For now, it just writes a good reply in Dave's voice.
+  You can expand this later per task_type.
+  """
+  # Build a bit of context from meta if available
+  from_name = meta.get("from_name") or ""
+  from_email = meta.get("from_email") or ""
+  subject = meta.get("subject") or ""
 
-    context_lines = []
-    if from_name or from_email:
-        context_lines.append(f"From: {from_name} <{from_email}>")
-    if subject:
-        context_lines.append(f"Subject: {subject}")
-    if task_type:
-        context_lines.append(f"Task type: {task_type}")
+  context_lines = []
+  if from_name or from_email:
+    context_lines.append(f"From: {from_name} <{from_email}>")
+  if subject:
+    context_lines.append(f"Subject: {subject}")
+  if task_type:
+    context_lines.append(f"Task type: {task_type}")
 
-    context_block = "\n".join(context_lines)
+  context_block = "\n".join(context_lines)
 
-    user_prompt = f"""
+  user_prompt = f"""
 {context_block}
 
 Here is the text to work with:
@@ -155,94 +155,144 @@ Task:
 Return ONLY plain text for the reply. No JSON, no markdown, no explanation.
 """
 
-    try:
-        reply_text = call_openai(
-            messages=[
-                {"role": "system", "content": BASE_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ]
-        )
-    except Exception as e:
-        reply_text = (
-            "Hi there,\n\n"
-            "Thanks for your message. I will review it and follow up with next steps.\n\n"
-            "Cheers,\n"
-            "David\n"
-            f"(Error details: {str(e)})"
-        )
+  try:
+    reply_text = call_openai(
+        messages=[
+            {"role": "system", "content": BASE_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+    )
+  except Exception as e:
+    reply_text = (
+        "Hi there,\n\n"
+        "Thanks for your message. I will review it and follow up with next steps.\n\n"
+        "Cheers,\n"
+        "David\n"
+        f"(Error details: {str(e)})"
+    )
 
-    # Simple generic result structure
-    return {
-        "name": meta.get("from_name"),
-        "email": meta.get("from_email"),
-        "phone": meta.get("phone"),
-        "lead_type": "Other",
-        "priority": "Medium",
-        "summary": body[:500],
-        "reply": reply_text,
-    }
+  # Simple generic result structure
+  return {
+      "name": meta.get("from_name"),
+      "email": meta.get("from_email"),
+      "phone": meta.get("phone"),
+      "lead_type": "Other",
+      "priority": "Medium",
+      "summary": body[:500],
+      "reply": reply_text,
+  }
 
 
 @app.route("/", methods=["POST"])
 def process_lead_or_task():
-    """
-    Main entry point for Daver Brain.
+  """
+  Main entry point for Daver Brain.
 
-    Backwards compatible:
-    - If caller only sends { "body": "..." } it behaves like the old lead processor.
-    Extended:
-    - If caller sends { "task_type": \"...\", \"body\": \"...\", ... } it can do other jobs.
-    """
-    # Optional auth
-    if INCOMING_API_KEY and request.headers.get("X-API-Key") != INCOMING_API_KEY:
-        return jsonify({"error": "unauthorized"}), 401
+  Backwards compatible:
+  - If caller only sends { "body": "..." } it behaves like the old lead processor.
+  Extended:
+  - If caller sends { "task_type": \"...\", \"body\": \"...\", ... } it can do other jobs.
+  """
+  # Optional auth
+  if INCOMING_API_KEY and request.headers.get("X-API-Key") != INCOMING_API_KEY:
+    return jsonify({"error": "unauthorized"}), 401
 
-    data = request.get_json(silent=True) or {}
+  data = request.get_json(silent=True) or {}
 
-    # Backwards compatible: original field name used by your Apps Script
-    body = data.get("body") or data.get("body_text") or ""
-    body = body.strip()
+  # Backwards compatible: original field name used by your Apps Script
+  body = data.get("body") or data.get("body_text") or ""
+  body = body.strip()
 
-    if not body:
-        return jsonify({"error": "missing 'body' or 'body_text' in JSON"}), 400
+  if not body:
+    return jsonify({"error": "missing 'body' or 'body_text' in JSON"}), 400
 
-    task_type = data.get("task_type") or "gmail_lead_reply"
+  task_type = data.get("task_type") or "gmail_lead_reply"
 
-    # Optional metadata from the caller (Adapters can add these later)
-    meta = {
-        "from_name": data.get("from_name"),
-        "from_email": data.get("from_email"),
-        "subject": data.get("subject"),
-        "phone": data.get("phone"),
-        "source": data.get("source"),
-    }
+  # Optional metadata from the caller (Adapters can add these later)
+  meta = {
+      "from_name": data.get("from_name"),
+      "from_email": data.get("from_email"),
+      "subject": data.get("subject"),
+      "phone": data.get("phone"),
+      "source": data.get("source"),
+  }
 
-    # Route based on task_type
-    if task_type == "gmail_lead_reply":
-        result = handle_gmail_lead_reply(body)
-    else:
-        # For now, all other tasks go through a generic handler.
-        result = handle_generic_task(task_type, body, meta)
+  # Route based on task_type
+  if task_type == "gmail_lead_reply":
+    result = handle_gmail_lead_reply(body)
+  else:
+    # For now, all other tasks go through a generic handler.
+    result = handle_generic_task(task_type, body, meta)
 
-    out = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "task_type": task_type,
-        "input_preview": body[:500],
-        "meta": meta,
-        "result": result,
-    }
+  out = {
+      "timestamp": datetime.utcnow().isoformat(),
+      "task_type": task_type,
+      "input_preview": body[:500],
+      "meta": meta,
+      "result": result,
+  }
 
-    print("Processed task:", json.dumps(out, ensure_ascii=False)[:1000])
-    return jsonify(out), 200
+  print("Processed task:", json.dumps(out, ensure_ascii=False)[:1000])
+  return jsonify(out), 200
+
+
+@app.route("/lead", methods=["POST"])
+def lead_endpoint():
+  """
+  Lightweight endpoint specifically for the Gmail Apps Script.
+
+  - Uses the same optional X-API-Key auth.
+  - Accepts payload with body/body_text, from_name, from_email, etc.
+  - Returns a simple JSON with reply_html so Apps Script can create a draft.
+  - Does NOT depend on OpenAI, so it responds quickly and will not hang.
+  """
+  if INCOMING_API_KEY and request.headers.get("X-API-Key") != INCOMING_API_KEY:
+    return jsonify({"error": "unauthorized"}), 401
+
+  data = request.get_json(silent=True) or {}
+
+  # Accept either "body" or "body_text" from Apps Script
+  body = data.get("body") or data.get("body_text") or ""
+  body = (body or "").strip()
+
+  from_name = data.get("from_name") or "there"
+  from_email = data.get("from_email")
+  subject = data.get("subject") or ""
+  phone = data.get("phone")
+
+  # Simple, safe, non-blocking reply for now
+  reply_html = f"""
+<p>Hi {from_name},</p>
+<p>Thanks for your message about <b>{subject or "your inquiry"}</b>. I will review the details and follow up with next steps.</p>
+<p>Cheers,<br>
+David Reimers PREC*<br>
+Royal LePage West Real Estate Services</p>
+""".strip()
+
+  # Structure designed to work smoothly with Apps Script's extractReplyFromJson_
+  response_payload = {
+      "name": from_name,
+      "email": from_email,
+      "phone": phone,
+      "lead_type": "Other",
+      "priority": "Medium",
+      "summary": body[:500],
+      "reply_html": reply_html,   # Apps Script will prefer this
+      "reply": reply_html,        # Backup key if needed
+      "timestamp": datetime.utcnow().isoformat(),
+  }
+
+  print("Lead endpoint processed:", json.dumps(response_payload, ensure_ascii=False)[:500])
+  return jsonify(response_payload), 200
 
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"ok": True, "time": datetime.utcnow().isoformat()}), 200
+  return jsonify({"ok": True, "time": datetime.utcnow().isoformat()}), 200
 
 
 # Render/Flask entrypoint
 if __name__ == "__main__":
-    # Render provides PORT env var
-    port = int(os.environ.get("PORT", "10000"))
-    app.run(host="0.0.0.0", port=port)
+  # Render provides PORT env var
+  port = int(os.environ.get("PORT", "10000"))
+  app.run(host="0.0.0.0", port=port)
