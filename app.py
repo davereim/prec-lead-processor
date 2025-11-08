@@ -257,7 +257,7 @@ if __name__ == "__main__":
   # Render provides PORT env var
   port = int(os.environ.get("PORT", "10000"))
   app.run(host="0.0.0.0", port=port)
-et so only your script can call this
+# Optional: simple shared secret so only your script can call this
 INCOMING_API_KEY = os.getenv("INCOMING_API_KEY", "")
 
 SYSTEM_PROMPT = (
@@ -354,5 +354,6 @@ if __name__ == "__main__":
     # Render provides PORT env var
     port = int(os.environ.get("PORT", "10000"))
     app.run(host="0.0.0.0", port=port)
+
 
 
