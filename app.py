@@ -1,67 +1,101 @@
 import os
-from flask import Flask, request, jsonify
+import json
 from datetime import datetime
-import openai
-
-# Plain ASCII only. No curly quotes or special punctuation.
+from flask import Flask, request, jsonify
+from openai import OpenAI
 
 app = Flask(__name__)
 
-# Read API key from environment
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# OpenAI client (new SDK)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Optional shared secret for basic auth
-SHARED_SECRET = os.getenv("SHARED_SECRET", "")
+# Optional: simple shared secret so only your script can call this
+INCOMING_API_KEY = os.getenv("INCOMING_API_KEY", "")
 
-@app.route("/", methods=["GET"])
-def health():
-    return "OK", 200
+SYSTEM_PROMPT = (
+    "You are Dave Clone, assistant to a Greater Vancouver realtor. "
+    "Write short, professional replies in Dave's voice. No emojis. "
+    "No flowery marketing language. Be clear and calm."
+)
+
+# Ask the model to return strict JSON we can parse
+JSON_INSTRUCTIONS = """
+Return ONLY valid JSON with this exact structure:
+{
+  "name": string | null,
+  "email": string | null,
+  "phone": string | null,
+  "lead_type": "Buyer" | "Seller" | "Foreclosure" | "VIPMA" | "Home Evaluation" | "Other",
+  "priority": "High" | "Medium" | "Low",
+  "summary": string,
+  "reply": string
+}
+Do not include any extra keys or prose. Only JSON.
+"""
 
 @app.route("/", methods=["POST"])
 def process_lead():
-    # Simple auth
-    if SHARED_SECRET and request.headers.get("X-Auth-Token") != SHARED_SECRET:
+    # Optional auth
+    if INCOMING_API_KEY and request.headers.get("X-API-Key") != INCOMING_API_KEY:
         return jsonify({"error": "unauthorized"}), 401
 
     data = request.get_json(silent=True) or {}
-    email_text = data.get("body", "")
+    email_text = data.get("body", "").strip()
 
-    prompt = (
-        "You are Dave Clone. Extract the following from this email:\n"
-        "- Name\n"
-        "- Email\n"
-        "- Phone\n"
-        "- Message summary\n"
-        "- Lead type (Buyer, Seller, Foreclosure, VIPMA, Home Evaluation, Other)\n"
-        "- Priority (High, Medium, Low)\n"
-        "Then write a short professional reply in Dave's tone.\n\n"
-        "Email content:\n"
-        f"{email_text}\n"
-    )
+    if not email_text:
+        return jsonify({"error": "missing 'body' in JSON"}), 400
 
-    # Call OpenAI Chat API
-    resp = openai.ChatCompletion.create(
-        model="gpt-5",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are Dave Clone, a professional Greater Vancouver realtor assistant. No emojis. No marketing fluff."
-            },
-            {"role": "user", "content": prompt},
-        ],
-    )
+    user_prompt = f"""
+Extract lead details from this email and write a reply in Dave's style.
 
-    result_text = resp.choices[0].message["content"]
+{JSON_INSTRUCTIONS}
 
-    log = {
+Email content:
+\"\"\"
+{email_text}
+\"\"\"
+"""
+
+    # NEW API CALL SIGNATURE
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o",  # you can change to another model that's available to your key
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.2,
+        )
+        content = resp.choices[0].message.content
+    except Exception as e:
+        return jsonify({"error": f"openai_error: {str(e)}"}), 500
+
+    # Try to parse JSON. If it fails, fall back to a basic reply-only payload.
+    parsed = None
+    try:
+        parsed = json.loads(content)
+    except Exception:
+        parsed = {
+            "name": None,
+            "email": None,
+            "phone": None,
+            "lead_type": "Other",
+            "priority": "Medium",
+            "summary": email_text[:500],
+            "reply": content
+        }
+
+    out = {
         "timestamp": datetime.utcnow().isoformat(),
-        "email_text": email_text,
-        "result": result_text,
+        "input_preview": email_text[:500],
+        "result": parsed
     }
-    print("Processed lead:", log)
-    return jsonify(log), 200
+    print("Processed lead:", out)  # shows in Render logs
+    return jsonify(out), 200
 
+
+# Render/Flask entrypoint
 if __name__ == "__main__":
-    # Render provides PORT
-    port = int(os.environ.get("PORT", 10000))
+    # Render provides PORT env var
+    port = int(os.environ.get("PORT", "10000"))
     app.run(host="0.0.0.0", port=port)
