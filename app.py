@@ -93,9 +93,17 @@ Email content:
     print("Processed lead:", out)  # shows in Render logs
     return jsonify(out), 200
 
+from datetime import datetime
+from flask import jsonify
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"ok": True, "time": datetime.utcnow().isoformat()}), 200
+
 
 # Render/Flask entrypoint
 if __name__ == "__main__":
     # Render provides PORT env var
     port = int(os.environ.get("PORT", "10000"))
     app.run(host="0.0.0.0", port=port)
+
